@@ -2,6 +2,7 @@ package org.efire.net.batch.config;
 
 import org.efire.net.batch.listener.JobListener;
 import org.efire.net.batch.model.Customer;
+import org.efire.net.dto.IndividualLookupMatchingDTO;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -11,6 +12,7 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
@@ -28,20 +30,20 @@ public class CsvToDatabaseJobConfig {
 
 
     @Bean
-    public Job csvToDatabaseJob(JobRepository jobRepository, Step csvToDatabaseStep, JobListener jobListener) {
+    public Job csvToDatabaseJob(JobRepository jobRepository, Step csvToCustomerIndividualStep, JobListener jobListener) {
         return new JobBuilder("csvToDatabaseJob", jobRepository)
-                .start(csvToDatabaseStep)
+                .start(csvToCustomerIndividualStep)
                 .listener(jobListener)
                 .build();
     }
 
     @Bean
-    public Step csvToDatabaseStep(JobRepository jobRepository,
-                                  FlatFileItemReader<Customer> csvFileReader,
-                                  ItemProcessor<Customer, Customer> personItemProcessor,
-                                  JdbcBatchItemWriter<Customer> jdbcBatchItemWriter,
-                                  PlatformTransactionManager transactionManager) {
-        return new StepBuilder("csvToDatabaseStep", jobRepository)
+    public Step csvToCustomerIndividualStep(JobRepository jobRepository,
+                                            FlatFileItemReader<Customer> csvFileReader,
+                                            ItemProcessor<Customer, Customer> personItemProcessor,
+                                            JdbcBatchItemWriter<Customer> jdbcBatchItemWriter,
+                                            PlatformTransactionManager transactionManager) {
+        return new StepBuilder("csvToCustomerIndividualStep", jobRepository)
                 .<Customer, Customer>chunk(10, transactionManager)
                 .reader(csvFileReader)
                 .processor(personItemProcessor)
@@ -77,10 +79,20 @@ public class CsvToDatabaseJobConfig {
     public ItemProcessor<Customer, Customer> personItemProcessor() {
 
         return item -> {
-            item.setFirstName(item.getFirstName().toUpperCase());
-            item.setMiddleName(item.getMiddleName().toUpperCase());
-            item.setLastName(item.getLastName().toUpperCase());
+            item.setFirstName(item.getFirstName().trim());
+            item.setMiddleName(item.getMiddleName().trim());
+            item.setLastName(item.getLastName().trim());
             return item;
         };
+    }
+
+    @Bean
+    public Step customerIndividualToLookupMatchingStep(JobRepository jobRepository,
+                                                       PlatformTransactionManager transactionManager) {
+        return new StepBuilder("customerIndividualToLookupMatching", jobRepository)
+                .<Customer, IndividualLookupMatchingDTO>chunk(10, transactionManager)
+                .reader(null)
+                .writer(null)
+                .build();
     }
 }
