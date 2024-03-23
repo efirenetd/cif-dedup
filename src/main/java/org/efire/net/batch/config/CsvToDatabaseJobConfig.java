@@ -2,7 +2,8 @@ package org.efire.net.batch.config;
 
 import org.efire.net.batch.listener.JobListener;
 import org.efire.net.batch.model.Customer;
-import org.efire.net.dto.IndividualLookupMatchingDTO;
+import org.efire.net.batch.model.LookupMatchingIndividual;
+import org.efire.net.batch.processor.LookupMatchingIndividualProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -14,6 +15,7 @@ import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourc
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
@@ -30,9 +32,13 @@ public class CsvToDatabaseJobConfig {
 
 
     @Bean
-    public Job csvToDatabaseJob(JobRepository jobRepository, Step csvToCustomerIndividualStep, JobListener jobListener) {
+    public Job csvToDatabaseJob(JobRepository jobRepository,
+                                Step csvToCustomerIndividualStep,
+                                Step customerIndividualToLookupMatchingStep,
+                                JobListener jobListener) {
         return new JobBuilder("csvToDatabaseJob", jobRepository)
                 .start(csvToCustomerIndividualStep)
+                .next(customerIndividualToLookupMatchingStep)
                 .listener(jobListener)
                 .build();
     }
@@ -88,11 +94,47 @@ public class CsvToDatabaseJobConfig {
 
     @Bean
     public Step customerIndividualToLookupMatchingStep(JobRepository jobRepository,
+                                                       JdbcCursorItemReader<Customer> jdbcCustomerIndividualReader,
+                                                       ItemProcessor<Customer, LookupMatchingIndividual> lookupMatchingIndividualProcessor,
+                                                       JdbcBatchItemWriter<LookupMatchingIndividual> jdbcLookupMatchingIndividualWriter,
                                                        PlatformTransactionManager transactionManager) {
         return new StepBuilder("customerIndividualToLookupMatching", jobRepository)
-                .<Customer, IndividualLookupMatchingDTO>chunk(10, transactionManager)
-                .reader(null)
-                .writer(null)
+                .<Customer, LookupMatchingIndividual>chunk(10, transactionManager)
+                .reader(jdbcCustomerIndividualReader)
+                .processor(lookupMatchingIndividualProcessor)
+                .writer(jdbcLookupMatchingIndividualWriter)
+                .build();
+    }
+
+    @Bean
+    public JdbcCursorItemReader<Customer> jdbcCustomerIndividualReader(DataSource dataSource) {
+        return new JdbcCursorItemReaderBuilder<Customer>()
+                .name("jdbcCustomerIndividualReader")
+                .dataSource(dataSource)
+                .rowMapper((rs, rowNum) -> {
+                    var cust = new Customer();
+                    cust.setCustomerNo(rs.getString("customer_no"));
+                    cust.setFirstName(rs.getString("first_name"));
+                    cust.setMiddleName(rs.getString("middle_name"));
+                    cust.setLastName(rs.getString("last_name"));
+                    return cust;
+                })
+                .sql("SELECT customer_no, first_name, middle_name, last_name from customer_ind")
+                .build();
+    }
+
+    @Bean
+    public ItemProcessor<Customer, LookupMatchingIndividual> lookupMatchingIndividualProcessor() {
+        return new LookupMatchingIndividualProcessor();
+    }
+
+    @Bean
+    public JdbcBatchItemWriter<LookupMatchingIndividual> jdbcLookupMatchingIndividualWriter(DataSource dataSource) {
+        return new JdbcBatchItemWriterBuilder<LookupMatchingIndividual>()
+                .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
+                .dataSource(dataSource)
+                .sql("INSERT INTO lookup_matching_ind (customer_no, first_name, middle_name, last_name) " +
+                        "VALUES (:customerNo, :firstName, :middleName, :lastName)")
                 .build();
     }
 }

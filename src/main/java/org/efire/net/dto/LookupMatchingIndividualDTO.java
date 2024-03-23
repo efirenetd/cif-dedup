@@ -1,10 +1,11 @@
 package org.efire.net.dto;
 
-public record CustomerDTO(String customerNo, String firstName, String middleName, String lastName) {
+public record LookupMatchingIndividualDTO(String customerNo, String firstName, String middleName, String lastName) {
+
 
     @Override
     public String toString() {
-        return "CustomerDTO{" +
+        return "LookupMatchingIndividualDTO{" +
                 "customerNo='" + customerNo + '\'' +
                 ", firstName='" + firstName + '\'' +
                 ", middleName='" + middleName + '\'' +

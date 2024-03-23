@@ -1,6 +1,7 @@
 package org.efire.net.batch.listener;
 
 import org.efire.net.dto.CustomerDTO;
+import org.efire.net.dto.LookupMatchingIndividualDTO;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
@@ -25,6 +26,13 @@ public class JobListener implements JobExecutionListener {
                         rs.getString(2),
                         rs.getString(3),
                         rs.getString(4)))
+                    .forEach(System.out::println);
+
+            jdbcTemplate.query("select customer_no, first_name, middle_name, last_name from lookup_matching_ind",
+                            (rs,rowNum)-> new LookupMatchingIndividualDTO(rs.getString(1),
+                                    rs.getString(2),
+                                    rs.getString(3),
+                                    rs.getString(4)))
                     .forEach(System.out::println);
 
         }
